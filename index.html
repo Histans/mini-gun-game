@@ -1,63 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Mini Gun Game</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      background: #111;
-      color: white;
-      font-family: Arial;
-    }
+<meta charset="UTF-8">
+<title>FPS Game</title>
+<style>
+  body { margin: 0; overflow: hidden; }
+  canvas { display: block; }
 
-    #target {
-      width: 50px;
-      height: 50px;
-      background: red;
-      border-radius: 50%;
-      position: absolute;
-      cursor: crosshair;
-    }
+  #crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 10px;
+    height: 10px;
+    margin-left: -5px;
+    margin-top: -5px;
+    background: white;
+    border-radius: 50%;
+  }
 
-    #score {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      font-size: 20px;
-    }
-  </style>
+  #hp {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 20px;
+  }
+</style>
 </head>
 <body>
 
-<div id="score">Score: 0</div>
-<div id="target"></div>
+<div id="crosshair"></div>
+<div id="hp">HP: 100</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
 
 <script>
-  const target = document.getElementById("target");
-  const scoreText = document.getElementById("score");
+let scene = new THREE.Scene();
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
 
-  let score = 0;
+let renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-  function moveTarget() {
-    const x = Math.random() * (window.innerWidth - 50);
-    const y = Math.random() * (window.innerHeight - 50);
+// 🎮 Controls (FPS look)
+let controls = new THREE.PointerLockControls(camera, document.body);
 
-    target.style.left = x + "px";
-    target.style.top = y + "px";
+document.body.addEventListener("click", () => {
+  controls.lock();
+});
+
+scene.add(controls.getObject());
+
+// 🌍 Floor
+let floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(100,100),
+  new THREE.MeshBasicMaterial({color: 0x222222})
+);
+floor.rotation.x = -Math.PI/2;
+scene.add(floor);
+
+// 🧍 Enemy (simple cube)
+let enemy = new THREE.Mesh(
+  new THREE.BoxGeometry(1,2,1),
+  new THREE.MeshBasicMaterial({color: 0xff0000})
+);
+enemy.position.set(0,1,-10);
+scene.add(enemy);
+
+// ❤️ Player HP
+let hp = 100;
+let hpText = document.getElementById("hp");
+
+// 🔊 Gun sound
+let gunSound = new Audio("gunshot.mp3");
+
+// 🎯 Shooting
+document.addEventListener("mousedown", () => {
+  gunSound.currentTime = 0;
+  gunSound.play();
+
+  let distance = camera.position.distanceTo(enemy.position);
+
+  if (distance < 5) {
+    enemy.material.color.set(0x00ff00); // hit effect
+    setTimeout(() => enemy.material.color.set(0xff0000), 100);
   }
+});
 
-  target.addEventListener("click", () => {
-    score++;
-    scoreText.innerText = "Score: " + score;
-    moveTarget();
-  });
+// 👊 Enemy AI (move toward player)
+function updateEnemy() {
+  let direction = new THREE.Vector3();
+  direction.subVectors(camera.position, enemy.position).normalize();
+  enemy.position.add(direction.multiplyScalar(0.02));
 
-  // Move target every 1 second
-  setInterval(moveTarget, 1000);
+  // attack if close
+  if (enemy.position.distanceTo(camera.position) < 1.5) {
+    hp -= 10;
+    hpText.innerText = "HP: " + hp;
 
-  moveTarget();
+    if (hp <= 0) {
+      alert("You Died 💀");
+      location.reload();
+    }
+  }
+}
+
+// 🏃 Movement
+let keys = {};
+
+document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+
+function move() {
+  let speed = 0.1;
+
+  if (keys["w"]) controls.moveForward(speed);
+  if (keys["s"]) controls.moveForward(-speed);
+  if (keys["a"]) controls.moveRight(-speed);
+  if (keys["d"]) controls.moveRight(speed);
+}
+
+// 🔁 Game loop
+function animate() {
+  requestAnimationFrame(animate);
+
+  move();
+  updateEnemy();
+
+  renderer.render(scene, camera);
+}
+
+animate();
 </script>
 
 </body>
