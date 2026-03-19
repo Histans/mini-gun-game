@@ -1,151 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>FPS Game</title>
-<style>
-  body { margin: 0; overflow: hidden; }
-  canvas { display: block; }
+  <meta charset="UTF-8">
+  <title>Mini Gun Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #111;
+      color: white;
+      font-family: Arial;
+    }
 
-  #crosshair {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 10px;
-    height: 10px;
-    margin-left: -5px;
-    margin-top: -5px;
-    background: white;
-    border-radius: 50%;
-  }
+    #target {
+      width: 50px;
+      height: 50px;
+      background: red;
+      border-radius: 50%;
+      position: absolute;
+      cursor: crosshair;
+    }
 
-  #hp {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    color: white;
-    font-size: 20px;
-  }
-</style>
+    #score {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      font-size: 20px;
+    }
+  </style>
 </head>
 <body>
 
-<div id="crosshair"></div>
-<div id="hp">HP: 100</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
+<div id="score">Score: 0</div>
+<div id="target"></div>
 
 <script>
-let scene = new THREE.Scene();
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+  const target = document.getElementById("target");
+  const scoreText = document.getElementById("score");
 
-let renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+  let score = 0;
 
-let controls = new THREE.PointerLockControls(camera, document.body);
-document.body.addEventListener("click", () => controls.lock());
-scene.add(controls.getObject());
+  function moveTarget() {
+    const x = Math.random() * (window.innerWidth - 50);
+    const y = Math.random() * (window.innerHeight - 50);
 
-// 🌍 floor
-let floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(100,100),
-  new THREE.MeshBasicMaterial({color: 0x222222})
-);
-floor.rotation.x = -Math.PI/2;
-scene.add(floor);
-
-// 🔫 FAKE GUN (visible in front of camera)
-let gun = new THREE.Mesh(
-  new THREE.BoxGeometry(0.3, 0.2, 1),
-  new THREE.MeshBasicMaterial({color: 0x000000})
-);
-gun.position.set(0.5, -0.5, -1);
-camera.add(gun);
-scene.add(camera);
-
-// 🧍 enemy
-let enemy = new THREE.Mesh(
-  new THREE.BoxGeometry(1,2,1),
-  new THREE.MeshBasicMaterial({color: 0xff0000})
-);
-enemy.position.set(0,1,-10);
-scene.add(enemy);
-
-// ❤️ player hp
-let hp = 100;
-let hpText = document.getElementById("hp");
-
-// 🔊 sound
-let gunSound = new Audio("gunshot.mp3");
-
-// 🎯 RAYCAST (real shooting)
-let raycaster = new THREE.Raycaster();
-
-document.addEventListener("mousedown", () => {
-  gunSound.currentTime = 0;
-  gunSound.play();
-
-  raycaster.setFromCamera({x:0, y:0}, camera);
-  let hits = raycaster.intersectObject(enemy);
-
-  if (hits.length > 0) {
-    enemy.material.color.set(0x00ff00);
-
-    setTimeout(() => {
-      enemy.material.color.set(0xff0000);
-    }, 100);
+    target.style.left = x + "px";
+    target.style.top = y + "px";
   }
-});
 
-// 👊 enemy attack cooldown
-let lastHit = 0;
+  target.addEventListener("click", () => {
+    score++;
+    scoreText.innerText = "Score: " + score;
+    moveTarget();
+  });
 
-function updateEnemy() {
-  let dir = new THREE.Vector3();
-  dir.subVectors(camera.position, enemy.position).normalize();
-  enemy.position.add(dir.multiplyScalar(0.03));
+  // Move target every 1 second
+  setInterval(moveTarget, 1000);
 
-  let distance = enemy.position.distanceTo(camera.position);
-
-  if (distance < 1.5 && Date.now() - lastHit > 1000) {
-    hp -= 10;
-    hpText.innerText = "HP: " + hp;
-    lastHit = Date.now();
-
-    if (hp <= 0) {
-      alert("You Died 💀");
-      location.reload();
-    }
-  }
-}
-
-// 🏃 movement
-let keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-
-function move() {
-  let speed = 0.1;
-  if (keys["w"]) controls.moveForward(speed);
-  if (keys["s"]) controls.moveForward(-speed);
-  if (keys["a"]) controls.moveRight(-speed);
-  if (keys["d"]) controls.moveRight(speed);
-}
-
-// 🔁 loop
-function animate() {
-  requestAnimationFrame(animate);
-
-  move();
-  updateEnemy();
-
-  renderer.render(scene, camera);
-}
-
-animate();
+  moveTarget();
 </script>
+
+</body>
+</html>
