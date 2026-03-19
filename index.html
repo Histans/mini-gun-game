@@ -36,6 +36,9 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
+
 <script>
 let scene = new THREE.Scene();
 let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
@@ -44,16 +47,11 @@ let renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 🎮 Controls (FPS look)
 let controls = new THREE.PointerLockControls(camera, document.body);
-
-document.body.addEventListener("click", () => {
-  controls.lock();
-});
-
+document.body.addEventListener("click", () => controls.lock());
 scene.add(controls.getObject());
 
-// 🌍 Floor
+// 🌍 floor
 let floor = new THREE.Mesh(
   new THREE.PlaneGeometry(100,100),
   new THREE.MeshBasicMaterial({color: 0x222222})
@@ -61,7 +59,16 @@ let floor = new THREE.Mesh(
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-// 🧍 Enemy (simple cube)
+// 🔫 FAKE GUN (visible in front of camera)
+let gun = new THREE.Mesh(
+  new THREE.BoxGeometry(0.3, 0.2, 1),
+  new THREE.MeshBasicMaterial({color: 0x000000})
+);
+gun.position.set(0.5, -0.5, -1);
+camera.add(gun);
+scene.add(camera);
+
+// 🧍 enemy
 let enemy = new THREE.Mesh(
   new THREE.BoxGeometry(1,2,1),
   new THREE.MeshBasicMaterial({color: 0xff0000})
@@ -69,36 +76,46 @@ let enemy = new THREE.Mesh(
 enemy.position.set(0,1,-10);
 scene.add(enemy);
 
-// ❤️ Player HP
+// ❤️ player hp
 let hp = 100;
 let hpText = document.getElementById("hp");
 
-// 🔊 Gun sound
+// 🔊 sound
 let gunSound = new Audio("gunshot.mp3");
 
-// 🎯 Shooting
+// 🎯 RAYCAST (real shooting)
+let raycaster = new THREE.Raycaster();
+
 document.addEventListener("mousedown", () => {
   gunSound.currentTime = 0;
   gunSound.play();
 
-  let distance = camera.position.distanceTo(enemy.position);
+  raycaster.setFromCamera({x:0, y:0}, camera);
+  let hits = raycaster.intersectObject(enemy);
 
-  if (distance < 5) {
-    enemy.material.color.set(0x00ff00); // hit effect
-    setTimeout(() => enemy.material.color.set(0xff0000), 100);
+  if (hits.length > 0) {
+    enemy.material.color.set(0x00ff00);
+
+    setTimeout(() => {
+      enemy.material.color.set(0xff0000);
+    }, 100);
   }
 });
 
-// 👊 Enemy AI (move toward player)
-function updateEnemy() {
-  let direction = new THREE.Vector3();
-  direction.subVectors(camera.position, enemy.position).normalize();
-  enemy.position.add(direction.multiplyScalar(0.02));
+// 👊 enemy attack cooldown
+let lastHit = 0;
 
-  // attack if close
-  if (enemy.position.distanceTo(camera.position) < 1.5) {
+function updateEnemy() {
+  let dir = new THREE.Vector3();
+  dir.subVectors(camera.position, enemy.position).normalize();
+  enemy.position.add(dir.multiplyScalar(0.03));
+
+  let distance = enemy.position.distanceTo(camera.position);
+
+  if (distance < 1.5 && Date.now() - lastHit > 1000) {
     hp -= 10;
     hpText.innerText = "HP: " + hp;
+    lastHit = Date.now();
 
     if (hp <= 0) {
       alert("You Died 💀");
@@ -107,22 +124,20 @@ function updateEnemy() {
   }
 }
 
-// 🏃 Movement
+// 🏃 movement
 let keys = {};
-
 document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
 document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
 function move() {
   let speed = 0.1;
-
   if (keys["w"]) controls.moveForward(speed);
   if (keys["s"]) controls.moveForward(-speed);
   if (keys["a"]) controls.moveRight(-speed);
   if (keys["d"]) controls.moveRight(speed);
 }
 
-// 🔁 Game loop
+// 🔁 loop
 function animate() {
   requestAnimationFrame(animate);
 
@@ -134,6 +149,3 @@ function animate() {
 
 animate();
 </script>
-
-</body>
-</html>
