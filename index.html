@@ -1,42 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>FPS Game</title>
+<title>FPS Zombie Game</title>
 
 <style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: black;
-    font-family: Arial;
-  }
+body { margin:0; overflow:hidden; background:black; }
 
-  canvas {
-    display: block;
-  }
+#crosshair {
+  position:fixed;
+  top:50%; left:50%;
+  width:12px; height:12px;
+  margin:-6px;
+  border:2px solid white;
+  border-radius:50%;
+}
 
-  /* 🎯 crosshair */
-  #crosshair {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 12px;
-    height: 12px;
-    margin-left: -6px;
-    margin-top: -6px;
-    border: 2px solid white;
-    border-radius: 50%;
-  }
-
-  /* ❤️ HP */
-  #hp {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    color: white;
-    font-size: 20px;
-  }
+#hp {
+  position:fixed;
+  top:10px; left:10px;
+  color:white;
+  font-size:20px;
+  font-family:Arial;
+}
 </style>
 </head>
 
@@ -45,59 +31,60 @@
 <div id="crosshair"></div>
 <div id="hp">HP: 100</div>
 
-<!-- THREE JS -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-// 🎮 SCENE
+// SCENE
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
 
-const camera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  1000
-);
+// CAMERA
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
 
-// 🎮 RENDERER
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+// RENDERER
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// 🔒 FPS CONTROLS
+// LIGHTING (important for realism)
+const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+scene.add(light);
+
+// CONTROLS (FPS)
 const controls = new THREE.PointerLockControls(camera, document.body);
-
-document.body.addEventListener("click", () => {
-  controls.lock();
-});
-
+document.body.onclick = () => controls.lock();
 scene.add(controls.getObject());
 
-// 🌍 FLOOR
+// FLOOR
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshBasicMaterial({ color: 0x222222 })
+  new THREE.PlaneGeometry(200,200),
+  new THREE.MeshStandardMaterial({color:0x333333})
 );
-floor.rotation.x = -Math.PI / 2;
+floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-// 🔫 FAKE GUN (visible)
-const gun = new THREE.Mesh(
-  new THREE.BoxGeometry(0.3, 0.2, 1),
-  new THREE.MeshBasicMaterial({ color: 0x000000 })
-);
-gun.position.set(0.5, -0.5, -1);
-camera.add(gun);
-scene.add(camera);
+// 🔫 GUN MODEL (ONLINE WORKING)
+const loader = new THREE.GLTFLoader();
+let gun;
 
-// 🧍 ENEMY
-const enemy = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 2, 1),
-  new THREE.MeshBasicMaterial({ color: 0xff0000 })
-);
-enemy.position.set(0, 1, -10);
-scene.add(enemy);
+loader.load("https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", (gltf) => {
+  gun = gltf.scene;
+  gun.scale.set(2,2,2);
+  gun.position.set(0.5, -0.7, -1);
+  camera.add(gun);
+});
+
+// 🧟 ZOMBIE MODEL (REAL)
+let zombie;
+
+loader.load("https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb", (gltf) => {
+  zombie = gltf.scene;
+  zombie.scale.set(0.4,0.4,0.4);
+  zombie.position.set(0,0,-10);
+  scene.add(zombie);
+});
 
 // ❤️ PLAYER HP
 let hp = 100;
@@ -106,40 +93,54 @@ const hpText = document.getElementById("hp");
 // 🔊 SOUND
 const gunSound = new Audio("gunshot.mp3");
 
-// 🎯 RAYCAST SHOOTING
+// 🎯 SHOOTING (RAYCAST)
 const raycaster = new THREE.Raycaster();
 
 document.addEventListener("mousedown", () => {
   gunSound.currentTime = 0;
   gunSound.play();
 
-  raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-  const hits = raycaster.intersectObject(enemy);
+  // recoil
+  if (gun) {
+    gun.rotation.x -= 0.2;
+    setTimeout(() => gun.rotation.x += 0.2, 100);
+  }
 
-  if (hits.length > 0) {
-    enemy.material.color.set(0x00ff00);
+  raycaster.setFromCamera({x:0,y:0}, camera);
 
-    setTimeout(() => {
-      enemy.material.color.set(0xff0000);
-    }, 100);
+  if (zombie) {
+    const hits = raycaster.intersectObject(zombie, true);
+
+    if (hits.length > 0) {
+      zombie.traverse(obj => {
+        if (obj.material) obj.material.color.set(0x00ff00);
+      });
+
+      setTimeout(() => {
+        zombie.traverse(obj => {
+          if (obj.material) obj.material.color.set(0xffffff);
+        });
+      }, 100);
+    }
   }
 });
 
-// 👊 ENEMY ATTACK
+// 👊 ZOMBIE AI
 let lastHit = 0;
 
-function updateEnemy() {
+function updateZombie(){
+  if (!zombie) return;
+
   const dir = new THREE.Vector3();
-  dir.subVectors(camera.position, enemy.position).normalize();
+  dir.subVectors(camera.position, zombie.position).normalize();
 
-  enemy.position.add(dir.multiplyScalar(0.03));
+  zombie.position.add(dir.multiplyScalar(0.02));
 
-  const distance = enemy.position.distanceTo(camera.position);
+  const dist = zombie.position.distanceTo(camera.position);
 
-  if (distance < 1.5 && Date.now() - lastHit > 1000) {
+  if (dist < 1.5 && Date.now() - lastHit > 1000) {
     hp -= 10;
     hpText.innerText = "HP: " + hp;
-
     lastHit = Date.now();
 
     if (hp <= 0) {
@@ -149,44 +150,36 @@ function updateEnemy() {
   }
 }
 
-// 🏃 MOVEMENT
+// MOVEMENT
 const keys = {};
 
-document.addEventListener("keydown", (e) => {
-  keys[e.key.toLowerCase()] = true;
-});
+onkeydown = e => keys[e.key.toLowerCase()] = true;
+onkeyup = e => keys[e.key.toLowerCase()] = false;
 
-document.addEventListener("keyup", (e) => {
-  keys[e.key.toLowerCase()] = false;
-});
-
-function move() {
-  const speed = 0.1;
-
-  if (keys["w"]) controls.moveForward(speed);
-  if (keys["s"]) controls.moveForward(-speed);
-  if (keys["a"]) controls.moveRight(-speed);
-  if (keys["d"]) controls.moveRight(speed);
+function move(){
+  if (keys["w"]) controls.moveForward(0.1);
+  if (keys["s"]) controls.moveForward(-0.1);
+  if (keys["a"]) controls.moveRight(-0.1);
+  if (keys["d"]) controls.moveRight(0.1);
 }
 
-// 🔁 GAME LOOP
-function animate() {
+// LOOP
+function animate(){
   requestAnimationFrame(animate);
 
   move();
-  updateEnemy();
+  updateZombie();
 
   renderer.render(scene, camera);
 }
-
 animate();
 
-// 📱 RESIZE FIX
-window.addEventListener("resize", () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+// RESIZE FIX
+onresize = () => {
+  camera.aspect = innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+  renderer.setSize(innerWidth, innerHeight);
+};
 </script>
 
 </body>
