@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>FPS Zombie Game</title>
+<title>Zombie FPS</title>
 
 <style>
 body { margin:0; overflow:hidden; background:black; }
@@ -10,9 +10,9 @@ body { margin:0; overflow:hidden; background:black; }
 #crosshair {
   position:fixed;
   top:50%; left:50%;
-  width:12px; height:12px;
-  margin:-6px;
-  border:2px solid white;
+  width:10px; height:10px;
+  margin:-5px;
+  background:white;
   border-radius:50%;
 }
 
@@ -33,154 +33,173 @@ body { margin:0; overflow:hidden; background:black; }
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/PointerLockControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
 <script>
-// SCENE
+// scene
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x111111);
+scene.background = new THREE.Color(0x222222);
 
-// CAMERA
+// camera
 const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
 
-// RENDERER
-const renderer = new THREE.WebGLRenderer({antialias:true});
+// renderer
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// LIGHTING (important for realism)
+// lighting
 const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
 scene.add(light);
 
-// CONTROLS (FPS)
+// controls
 const controls = new THREE.PointerLockControls(camera, document.body);
 document.body.onclick = () => controls.lock();
 scene.add(controls.getObject());
 
-// FLOOR
+// ground (BIG MAP)
 const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(200,200),
-  new THREE.MeshStandardMaterial({color:0x333333})
+  new THREE.PlaneGeometry(500,500),
+  new THREE.MeshStandardMaterial({color:0x444444})
 );
 floor.rotation.x = -Math.PI/2;
 scene.add(floor);
 
-// 🔫 GUN MODEL (ONLINE WORKING)
-const loader = new THREE.GLTFLoader();
-let gun;
+// walls
+function createWall(x,z){
+  const wall = new THREE.Mesh(
+    new THREE.BoxGeometry(10,5,1),
+    new THREE.MeshStandardMaterial({color:0x666666})
+  );
+  wall.position.set(x,2.5,z);
+  scene.add(wall);
+}
 
-loader.load("https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf", (gltf) => {
-  gun = gltf.scene;
-  gun.scale.set(2,2,2);
-  gun.position.set(0.5, -0.7, -1);
-  camera.add(gun);
-});
+// map layout
+for(let i=-50;i<=50;i+=10){
+  createWall(i,-50);
+  createWall(i,50);
+  createWall(-50,i);
+  createWall(50,i);
+}
 
-// 🧟 ZOMBIE MODEL (REAL)
-let zombie;
+// 🔫 gun (better looking)
+const gun = new THREE.Mesh(
+  new THREE.BoxGeometry(0.2,0.2,1),
+  new THREE.MeshStandardMaterial({color:0x111111})
+);
+gun.position.set(0.5,-0.5,-1);
+camera.add(gun);
+scene.add(camera);
 
-loader.load("https://threejs.org/examples/models/gltf/RobotExpressive/RobotExpressive.glb", (gltf) => {
-  zombie = gltf.scene;
-  zombie.scale.set(0.4,0.4,0.4);
-  zombie.position.set(0,0,-10);
-  scene.add(zombie);
-});
+// 🧟 zombies
+let zombies = [];
 
-// ❤️ PLAYER HP
+function spawnZombie(){
+  const z = new THREE.Mesh(
+    new THREE.BoxGeometry(1,2,1),
+    new THREE.MeshStandardMaterial({color:0x00aa00})
+  );
+
+  z.position.set(
+    (Math.random()-0.5)*100,
+    1,
+    (Math.random()-0.5)*100
+  );
+
+  z.hp = 30;
+  scene.add(z);
+  zombies.push(z);
+}
+
+// spawn many zombies
+for(let i=0;i<5;i++) spawnZombie();
+
+// HP
 let hp = 100;
 const hpText = document.getElementById("hp");
 
-// 🔊 SOUND
+// sound
 const gunSound = new Audio("gunshot.mp3");
 
-// 🎯 SHOOTING (RAYCAST)
+// shooting
 const raycaster = new THREE.Raycaster();
 
-document.addEventListener("mousedown", () => {
+document.addEventListener("mousedown", ()=>{
   gunSound.currentTime = 0;
   gunSound.play();
 
   // recoil
-  if (gun) {
-    gun.rotation.x -= 0.2;
-    setTimeout(() => gun.rotation.x += 0.2, 100);
-  }
+  gun.rotation.x -= 0.2;
+  setTimeout(()=>gun.rotation.x += 0.2,100);
 
   raycaster.setFromCamera({x:0,y:0}, camera);
 
-  if (zombie) {
-    const hits = raycaster.intersectObject(zombie, true);
+  zombies.forEach(z=>{
+    const hit = raycaster.intersectObject(z);
+    if(hit.length>0){
+      z.hp -= 10;
+      z.material.color.set(0xff0000);
 
-    if (hits.length > 0) {
-      zombie.traverse(obj => {
-        if (obj.material) obj.material.color.set(0x00ff00);
-      });
+      setTimeout(()=>z.material.color.set(0x00aa00),100);
 
-      setTimeout(() => {
-        zombie.traverse(obj => {
-          if (obj.material) obj.material.color.set(0xffffff);
-        });
-      }, 100);
+      if(z.hp <= 0){
+        scene.remove(z);
+      }
     }
-  }
+  });
 });
 
-// 👊 ZOMBIE AI
+// zombie AI
 let lastHit = 0;
 
-function updateZombie(){
-  if (!zombie) return;
+function updateZombies(){
+  zombies.forEach(z=>{
+    const dir = new THREE.Vector3();
+    dir.subVectors(camera.position, z.position).normalize();
 
-  const dir = new THREE.Vector3();
-  dir.subVectors(camera.position, zombie.position).normalize();
+    z.position.add(dir.multiplyScalar(0.02));
 
-  zombie.position.add(dir.multiplyScalar(0.02));
+    if(z.position.distanceTo(camera.position)<1.5 && Date.now()-lastHit>1000){
+      hp -= 10;
+      hpText.innerText = "HP: "+hp;
+      lastHit = Date.now();
 
-  const dist = zombie.position.distanceTo(camera.position);
-
-  if (dist < 1.5 && Date.now() - lastHit > 1000) {
-    hp -= 10;
-    hpText.innerText = "HP: " + hp;
-    lastHit = Date.now();
-
-    if (hp <= 0) {
-      alert("You Died 💀");
-      location.reload();
+      if(hp<=0){
+        alert("You Died 💀");
+        location.reload();
+      }
     }
-  }
+  });
 }
 
-// MOVEMENT
+// movement
 const keys = {};
-
-onkeydown = e => keys[e.key.toLowerCase()] = true;
-onkeyup = e => keys[e.key.toLowerCase()] = false;
+onkeydown=e=>keys[e.key.toLowerCase()]=true;
+onkeyup=e=>keys[e.key.toLowerCase()]=false;
 
 function move(){
-  if (keys["w"]) controls.moveForward(0.1);
-  if (keys["s"]) controls.moveForward(-0.1);
-  if (keys["a"]) controls.moveRight(-0.1);
-  if (keys["d"]) controls.moveRight(0.1);
+  if(keys["w"]) controls.moveForward(0.15);
+  if(keys["s"]) controls.moveForward(-0.15);
+  if(keys["a"]) controls.moveRight(-0.15);
+  if(keys["d"]) controls.moveRight(0.15);
 }
 
-// LOOP
+// loop
 function animate(){
   requestAnimationFrame(animate);
-
   move();
-  updateZombie();
-
-  renderer.render(scene, camera);
+  updateZombies();
+  renderer.render(scene,camera);
 }
 animate();
 
-// RESIZE FIX
-onresize = () => {
-  camera.aspect = innerWidth/innerHeight;
+// resize
+onresize=()=>{
+  camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(innerWidth,innerHeight);
 };
 </script>
 
 </body>
-</html>
+</html>   
